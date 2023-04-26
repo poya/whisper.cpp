@@ -1,77 +1,48 @@
-// swift-tools-version:5.5
+// swift-tools-version: 5.5
+// The swift-tools-version declares the minimum version of Swift required to build this package.
 
 import PackageDescription
 
-#if arch(arm) || arch(arm64)
-let platforms: [SupportedPlatform]? = [
-    .macOS(.v12),
-    .iOS(.v14),
-    .watchOS(.v4),
-    .tvOS(.v14)
-]
-let exclude: [String] = []
-let resources: [Resource] = [
-    .process("ggml-metal.metal")
-]
-let additionalSources: [String] = ["ggml-metal.m"]
-let additionalSettings: [CSetting] = [
-    .unsafeFlags(["-fno-objc-arc"]),
-    .define("GGML_USE_METAL")
-]
-#else
-let platforms: [SupportedPlatform]? = nil
-let exclude: [String] = ["ggml-metal.metal"]
-let resources: [Resource] = []
-let additionalSources: [String] = []
-let additionalSettings: [CSetting] = []
-#endif
-
 let package = Package(
-    name: "whisper",
-    platforms: platforms,
+    name: "whisper_cpp",
+    platforms: [
+        .iOS(.v15),
+        .macOS(.v12),
+        .tvOS(.v15),
+        .watchOS(.v8),
+    ],
     products: [
-        .library(name: "whisper", targets: ["whisper"]),
+        .library(
+            name: "whisper_cpp",
+            targets: ["whisper_cpp"]),
+        .library(
+            name: "coreml_whisper_cpp",
+            targets: ["coreml_whisper_cpp"]),
     ],
     targets: [
         .target(
-            name: "whisper",
-            path: ".",
-            exclude: exclude + [
-               "bindings",
-               "cmake",
-               "coreml",
-               "examples",
-               "extra",
-               "models",
-               "samples",
-               "tests",
-               "CMakeLists.txt",
-               "ggml-cuda.cu",
-               "ggml-cuda.h",
-               "Makefile"
+            name: "whisper_cpp",
+            resources: [
+                .process("ggml-metal.metal")
             ],
-            sources: [
-                "ggml.c",
-                "whisper.cpp",
-                "ggml-alloc.c",
-                "ggml-backend.c",
-                "ggml-quants.c"
-            ] + additionalSources,
-            resources: resources,
-            publicHeadersPath: "spm-headers",
             cSettings: [
-                .unsafeFlags(["-Wno-shorten-64-to-32", "-O3", "-DNDEBUG"]),
-                .define("GGML_USE_ACCELERATE")
-                // NOTE: NEW_LAPACK will required iOS version 16.4+
-                // We should consider add this in the future when we drop support for iOS 14
-                // (ref: ref: https://developer.apple.com/documentation/accelerate/1513264-cblas_sgemm?language=objc)
-                // .define("ACCELERATE_NEW_LAPACK"),
-                // .define("ACCELERATE_LAPACK_ILP64")
-            ] + additionalSettings,
-            linkerSettings: [
-                .linkedFramework("Accelerate")
+                .headerSearchPath("../.."),
+                .unsafeFlags(["-O3", "-fno-objc-arc"]),
+                .define("GGML_USE_ACCELERATE"),
+                .define("GGML_USE_METAL"),
+                .define("GGML_METAL_NDEBUG", .when(configuration: .release)),
             ]
-        )
+        ),
+        .target(
+            name: "coreml_whisper_cpp",
+            cSettings: [
+                .headerSearchPath("../.."),
+                .unsafeFlags(["-O3"]),
+                .define("GGML_USE_ACCELERATE"),
+                .define("WHISPER_USE_COREML"),
+                .define("WHISPER_COREML_ALLOW_FALLBACK"),
+            ]
+        ),
     ],
     cxxLanguageStandard: .cxx11
 )
